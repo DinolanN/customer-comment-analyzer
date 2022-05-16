@@ -3,23 +3,34 @@ package com.ikhokha.techcheck;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class Main {
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws InterruptedException, ExecutionException {
 		
 		Map<String, Integer> totalResults = new HashMap<>();
 				
 		File docPath = new File("docs");
 		File[] commentFiles = docPath.listFiles((d, n) -> n.endsWith(".txt"));
 		
-		for (File commentFile : commentFiles) {
+		//five threads at a time, can be changed later on
+		int numberOfThreads = commentFiles.length <= 5 ? commentFiles.length : 5;
+		
+		ExecutorService service = Executors.newFixedThreadPool(numberOfThreads);
+		
+		for (File commentFile: commentFiles) {
 			
-			CommentAnalyzer commentAnalyzer = new CommentAnalyzer(commentFile);
-			Map<String, Integer> fileResults = commentAnalyzer.analyze();
-			addReportResults(fileResults, totalResults);
-						
+			//Callback for getting the resultsMap from the thread
+			Future<Map<String, Integer>> resultsMap = service.submit(new MultiThreadingFiles(commentFile));
+			addReportResults(resultsMap.get(), totalResults);
+			
 		}
+		
+		service.shutdown(); 
 		
 		System.out.println("RESULTS\n=======");
 		totalResults.forEach((k,v) -> System.out.println(k + " : " + v));
@@ -31,11 +42,22 @@ public class Main {
 	 * @param target the target map
 	 */
 	private static void addReportResults(Map<String, Integer> source, Map<String, Integer> target) {
-
-		for (Map.Entry<String, Integer> entry : source.entrySet()) {
-			target.put(entry.getKey(), entry.getValue());
-		}
 		
-	}
+		if (target.isEmpty()) {
+			
+			for (Map.Entry<String, Integer> entry : source.entrySet()) {
+				
+				target.put(entry.getKey(), entry.getValue());
+				
+			}
+			
+		} else {
+			
+			for (Map.Entry<String, Integer> entry : source.entrySet()) {
+				
+				target.replace(entry.getKey(), target.get(entry.getKey()) + entry.getValue());
 
+			}
+		}
+	}
 }
